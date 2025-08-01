@@ -1,0 +1,230 @@
+Prompt, require design Software Architecture
+
+Try to WRITE IN RUST
+Pico Firmware
+RGB 颜色对应正常运行或者错误断联，亮度低一点。绿色：上电启动，闪烁：通信包，红色：通信超时。可控开关关闭led。
+接收主机硬件温度数据
+保存风扇转速曲线, by (℃, %) pairs and Interpolation?
+向风扇发送pwm信号
+断联检测和警告。定时发送心跳信号 Pico 的主循环应该在每次收到有效的温度数据包时重置计数器。如果计数器超过阈值（例如 5 秒），它将覆盖风扇控制逻辑并设置默认的高速配置文件。
+每十秒发送pico状态，如pico温度，各个风扇当前转速等。
+Define a Simple Protocol: Create clear and simple messages.
+PC -> Pico (Temperature Push): T:<cpu_temp>,<gpu_temp>\n
+PC -> Pico (Fan Curve Update): C:<temp1>,<pwm1>;<temp2>,<pwm2>;...\n
+Pico -> PC (Heartbeat/Status): S:OK\n or S:FAILSAFE\n
+
+Host Software: cmd line tool
+Run backgourd and auto start with OS, reduce the PC load as much as possible?
+后台程序（win service）和前台配置程序分离。
+能够发送windows通知警告
+向pico发送硬件温度
+查询当前可检测的硬件温度列表 CPU封装温度（Package Temperature）和cpu负载综合考虑
+查询当前可控风扇列表，包括对应温度传感器，当前速度，和简易温度曲线
+风扇转速曲线, 简易(℃, %) 数对，完整绘制分段函数图。温度曲线，计算存储分段函数，首尾为平线，如设定(30℃, 30%), (60℃, 60%) -> 1. <30℃=20%, 2. 30-60℃ x=y, 3. >60℃=60%
+风扇和温度传感器配对
+配置在单独的配置文件里, YAML/Json/TOML。启动时检查配置文件字段的效验checksum，如果跟pico不一致则发送pico更新数据。有一个单独的配置更新exe，使用windows edit命令行文本编辑器打开配置文件，修改变动保存退出后自动更新；也可用其他修改完配置文件后手动运行更新。
+温度轮询检测间隔(1-2s) 和温度发送时间间隔
+温度发送和转速设定的策略。结合cpu负载动态设定检测频率。过滤温度读数小范围快速变化的噪声，并对快速升温敏感。风扇转速对升温提速响应快速，但对降温降速有相应延迟
+断联检测和警告，重连成功提醒。发送win消息
+通信协议：简单高频的温度等：自定义字符串协议；复杂设置参数：json
+日志，保留三天
+读取pico温度
+前台配置程序可以主动连接
+可控信号灯开关和亮度, 分错误灯和信号灯
+ and provide an interface for listing detective hardware temperatures, listing working fans and their PWM percentage and showing/configuring  and other parameters. 
+
+让AI给出优化建议，让AI问我描述不清不全面的事情
+
+MOREOVER:
+控制gpu风扇，cfg存储curve
+
+要求尽量占用较小的系统资源
+如何获取gpu cpu温度？api? 连续exe调用？
+
+api
+使用NVML库（C/C++/Python） 依赖：CUDA Toolkit（含NVML头文件）。NVML主要用于监控，但结合cool-bits配置后，可以实现风扇控制。
+使用 NVIDIA NVAPI https://docs.nvidia.com/gameworks/content/gameworkslibrary/coresdk/nvapi/index.html
+https://docs.nvidia.com/gameworks/content/gameworkslibrary/coresdk/nvapi/group__gpucooler.html
+nvidia-xconfig
+nvidia-settings
+
+you are a professional embedded engineer, electronic engineer and software engineer.
+I want to use a Raspberry Pi Pico to build a computer fan controller. It can communicate with the host Windows PC using usb to read multiple hardware temperatures (like CPU and GPU), can store a temperature fan speed curve (which can be set on host PC), and outputs multiple PWM signals based on it to some fans. The fans power supply is provided by motherboard, not by Pico. Now design the framework of both program on Pico and on host PC, which should use c++, use less system resource, and has many tunable parameters. The Pico side program should use dual-core resources. The PC side program should run background and can set parameters through command line, no GUI. 
+
+
+
+Last time I call you to write a rust program that can query the Intel CPU package temperature using wmi and Nvidia GPU temperature every second under DELL PC Windows system, with low system overhead. And Found out that on DELL PC wmi can't read data from "MSAcpi_ThermalZoneTemperature" or "Win32_TemperatureProbe" and you suggest read data from Open Hardware Monitor. 
+Hey, if I have to use external software Open Hardware Monitor running background to implement CPU tempurature, what's total system resource consumption (like memory and polling CPU usage and other related resource)? What about write this project in C#? Can C# implement monitor CPU package and Nvidia GPU temperature on DELL PC Windows platform with out external software? And what's its estimated system resource consumption? Moreover, what's estimated system resource consumption using LibreHardwareMonitorLib.dll?
+
+
+PS C:\Users\DELL\Documents\lzy\IE\Pico\waveshare-rp2040-zero-rust> Get-WmiObject -Namespace "ROOT\CIMV2" -List | Where-Object Name -like "*Temp*"
+
+   NameSpace:ROOT\CIMV2
+
+Name                                Methods              Properties
+----                                -------              ----------
+CIM_TemperatureSensor               {SetPowerState, R... {Accuracy, A...
+Win32_TemperatureProbe              {SetPowerState, R... {Accuracy, A...
+CIM_PackageTempSensor               {}                   {Antecedent,...
+CIM_ComputerSystemPackage           {}                   {Antecedent,...
+Win32_ComputerSystemProduct         {}                   {Caption, De...
+Win32_SystemProgramGroups           {}                   {Element, Se...
+Win32_ComputerSystemProcessor       {}                   {GroupCompon...
+Win32_SystemPartitions              {}                   {GroupCompon...
+Win32_SystemProcesses               {}                   {GroupCompon...
+
+
+PS C:\Users\DELL> Get-WmiObject -Namespace "ROOT\CIMV2" -Class "Win32_TemperatureProbe"
+
+CurrentReading :
+Name           : 数字传感器
+Description    : CPU Thermal Probe
+MinReadable    : 0
+MaxReadable    : 0
+Status         : OK
+
+CurrentReading :
+Name           : 数字传感器
+Description    : PCH Thermal
+MinReadable    : 0
+MaxReadable    : 0
+Status         : OK
+
+CurrentReading :
+Name           : 数字传感器
+Description    : VR
+MinReadable    : 0
+MaxReadable    : 0
+Status         : OK
+
+CurrentReading :
+Name           : 数字传感器
+Description    : Ambient
+MinReadable    : 0
+MaxReadable    : 0
+Status         : OK
+
+
+PS C:\Users\DELL> Get-WmiObject -Namespace "root/wmi" -List | Where-Object Name -like "*Temp*"
+
+   NameSpace:ROOT\wmi
+
+Name                                Methods              Properties
+----                                -------              ----------
+MSAcpi_ThermalZoneTemperature       {}                   {Active, Act...
+
+
+PS C:\Users\DELL> Get-WmiObject -Namespace "ROOT\wmi" -Class "MSAcpi_ThermalZoneTemperature"
+Get-WmiObject : 不支持
+所在位置 行:1 字符: 1
++ Get-WmiObject -Namespace "ROOT\wmi" -Class "MSAcpi_ThermalZoneTempera
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [Get-WmiObject]，Man
+    agementException
+    + FullyQualifiedErrorId : GetWMIManagementException,Microsoft.Power
+   Shell.Commands.GetWmiObjectCommand
+
+PS C:\Users\DELL> et-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature
+Get-CimInstance : 不支持
+所在位置 行:1 字符: 1
++ Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemp
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotImplemented: (root/WMI:MSAcpi_ThermalZ
+   oneTemperature:String) [Get-CimInstance], CimException
+    + FullyQualifiedErrorId : HRESULT 0x8004100c,Microsoft.Management.I
+   nfrastructure.CimCmdlets.GetCimInstanceCommand
+
+
+#### **2. Program Structure (Pico)**
+
+```cpp
+#include "pico/stdlib.h"
+#include "pico/stdio_usb.h"
+#include "hardware/pwm.h"
+#include "hardware/flash.h"
+#include <vector>
+
+// Data structure for a single point in the fan curve
+struct FanCurvePoint {
+    uint8_t temperature; // In degrees Celsius
+    uint8_t fan_speed_percent; // 0-100%
+};
+
+class FanController {
+public:
+    void initialize();
+    void run();
+
+private:
+    void setup_gpios();
+    void setup_usb_communication();
+    void setup_pwm();
+    void load_fan_curve_from_flash();
+    void save_fan_curve_to_flash(const std::vector<FanCurvePoint>& curve);
+    void process_incoming_command(const std::string& command);
+    void update_fan_speeds(uint8_t cpu_temp, uint8_t gpu_temp);
+    uint8_t calculate_fan_speed(uint8_t temperature, const std::vector<FanCurvePoint>& curve);
+
+    std::vector<FanCurvePoint> cpu_fan_curve;
+    std::vector<FanCurvePoint> gpu_fan_curve;
+    // Add more curves for other fans as needed
+};
+
+int main() {
+    FanController controller;
+    controller.initialize();
+    controller.run();
+    return 0;
+}
+```
+
+
+#### **2. Program Structure (Host PC)**
+
+```cpp
+#include <iostream>
+#include <string>
+#include <vector>
+#include "args.hpp" // Example command-line parser
+#include "serial.hpp" // Example serial communication library
+#include "hwinfo/hwinfo.h" // Example hardware info library
+
+class FanControlClient {
+public:
+    void initialize(int argc, char** argv);
+    void run();
+
+private:
+    void parse_command_line(int argc, char** argv);
+    void connect_to_pico();
+    void send_temperatures();
+    void set_fan_curve();
+
+    std::string com_port;
+    bool should_set_curve;
+    std::vector<std::string> new_curve_data;
+    SerialConnection pico_connection;
+};
+
+int main(int argc, char** argv) {
+    FanControlClient client;
+    client.initialize(argc, argv);
+    client.run();
+    return 0;
+}
+```
+
+#### **3. Command-Line Usage Example (Host PC)**
+
+```bash
+# Run in monitoring mode, sending temperature updates to the Pico on COM3
+./fan_controller_client.exe --port COM3
+
+# Set a new fan curve for the CPU and then exit
+./fan_controller_client.exe --port COM3 --set-curve CPU,40,20,60,50,80,90
+
+# Set a new fan curve and then continue monitoring
+./fan_controller_client.exe --port COM3 --set-curve CPU,40,20,60,50,80,90 --monitor
+```
